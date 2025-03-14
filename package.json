@@ -1,46 +1,64 @@
 {
-  "name": "eslint-plugin-reanimated",
-  "version": "0.0.0-development",
+  "name": "@t1m0fe1/eslint-plugin-reanimated",
+  "version": "0.0.1",
+  "description": "ESLint plugin for Reanimated",
   "main": "dist/index.js",
   "license": "MIT",
-  "scripts": {
-    "prepublish": "yarn build",
-    "test": "jest --coverage",
-    "lint": "eslint --ext .ts,.tsx . --max-warnings 0",
-    "tsc": "tsc",
-    "build": "tsc -b tsconfig.build.json",
-    "ci": "yarn lint && yarn tsc && yarn test",
-    "semantic-release": "semantic-release"
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin",
+    "reanimated",
+    "react-native-reanimated",
+    "eslint-reanimated",
+    "eslint-plugin-reanimated"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/t1m0fe1/eslint-plugin-reanimated.git"
   },
+  "bugs": {
+    "url": "https://github.com/t1m0fe1/eslint-plugin-reanimated/issues"
+  },
+  "homepage": "https://github.com/t1m0fe1/eslint-plugin-reanimated#readme",
   "files": [
     "dist"
   ],
-  "author": {
-    "name": "William Candillon",
-    "email": "wcandillon@gmail.com"
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
-  "devDependencies": {
-    "@shopify/react-native-skia": "^0.1.133",
-    "@types/node": "^14.14.20",
-    "eslint": "8",
-    "eslint-config-react-native-wcandillon": "3.9.0",
-    "jest": "^26.6.3",
-    "react-native-reanimated": "3.4.2",
-    "react-native-redash": "18.0.0",
-    "semantic-release": "^17.3.1",
-    "ts-jest": "^26.4.4",
-    "typescript": "^4.1.3"
+  "scripts": {
+    "lint": "bunx eslint .",
+    "build": "bunx tsc -p tsconfig.build.json",
+    "prepublish": "bun run build",
+    "update:eslint-docs": "bun run build && eslint-doc-generator"
   },
   "peerDependencies": {
-    "eslint": ">=8",
-    "typescript": ">=4.1.3"
+    "@types/eslint": ">=9.0.0",
+    "eslint": ">=9.0.0",
+    "typescript": ">=5.8.2"
   },
-  "dependencies": {
-    "@typescript-eslint/experimental-utils": "5.33.0",
-    "eslint-plugin-ft-flow": "^2.0.1"
+  "peerDependenciesMeta": {
+    "@types/eslint": {
+      "optional": true
+    }
   },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/wcandillon/eslint-plugin-reanimated.git"
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "@types/bun": "^1.2.5",
+    "@types/eslint": "^9.6.1",
+    "@typescript-eslint/parser": "^8.26.1",
+    "@typescript-eslint/rule-tester": "^8.26.1",
+    "@typescript-eslint/utils": "^8.26.1",
+    "eslint": "^8.57.1",
+    "eslint-doc-generator": "^2.1.1",
+    "eslint-plugin-eslint-plugin": "^6.4.0",
+    "eslint-plugin-n": "^17.16.2",
+    "semantic-release": "^24.2.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.1"
   }
 }
