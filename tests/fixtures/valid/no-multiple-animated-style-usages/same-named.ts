@@ -1,3 +1,5 @@
+export default {
+  code: `\
 import Animated, {useAnimatedStyle, useSharedValue} from 'react-native-reanimated'
 
 const Component = () => {
@@ -38,3 +40,6 @@ const AddPageIndicator = ({selectedPage, index}: Props) => {
   );
 };
 */
+  `,
+  name: "same-named",
+};

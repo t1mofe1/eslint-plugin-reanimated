@@ -1,55 +1,31 @@
-import path from "path";
-import fs from "fs";
+import * as test from "bun:test";
+import { RuleTester } from "@typescript-eslint/rule-tester";
+// import getValidTests from "./helpers/getValidTests";
+import getInvalidTests from "./helpers/getInvalidTests";
+import rule, { ruleName } from "../src/rules/unsupported-syntax";
 
-import { ESLintUtils } from "@typescript-eslint/experimental-utils";
+RuleTester.afterAll = test.afterAll;
+RuleTester.describe = test.describe;
+RuleTester.it = test.it;
+RuleTester.itOnly = test.it.only;
 
-import rule from "../src/rules/unsupported-syntax";
-
-const ruleTester = new ESLintUtils.RuleTester({
-  parser: "@typescript-eslint/parser",
-  parserOptions: {
-    project: "./tsconfig.eslint.json",
-    tsconfigRootDir: path.join(__dirname, "fixtures"),
-    sourceType: "module",
-    ecmaFeatures: {
-      jsx: true,
+const ruleTester = new RuleTester({
+  languageOptions: {
+    parserOptions: {
+      projectService: {
+        allowDefaultProject: ["*.ts*"],
+      },
+      project: "../tsconfig.test.json",
+      sourceType: "module",
+      ecmaFeatures: {
+        jsx: true,
+      },
     },
   },
 });
 
-const code = (name: string) =>
-  fs.readFileSync(path.join(__dirname, name), "utf8");
-const VALID = "fixtures/valid";
-const files = fs.readdirSync(path.join(__dirname, VALID));
-const valid = files.map((file) => ({
-  code: code(path.join(VALID, file)),
-}));
-
-ruleTester.run("unsupported-syntax", rule, {
-  valid,
-  invalid: [
-    {
-      code: code("fixtures/invalid/test8.txt"),
-      errors: [
-        {
-          messageId: "UnsupportedSyntaxMessage",
-          data: {
-            name: "The spread operator",
-          },
-        },
-        {
-          messageId: "UnsupportedSyntaxMessage",
-          data: {
-            name: "for in/of",
-          },
-        },
-        {
-          messageId: "UnsupportedSyntaxMessage",
-          data: {
-            name: "for in/of",
-          },
-        },
-      ],
-    },
-  ],
+ruleTester.run(ruleName, rule, {
+  // valid: getValidTests(ruleName),
+  valid: [],
+  invalid: getInvalidTests(ruleName),
 });

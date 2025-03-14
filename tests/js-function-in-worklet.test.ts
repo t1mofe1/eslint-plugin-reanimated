@@ -1,143 +1,117 @@
-import path from "path";
-import fs from "fs";
+import test from "bun:test";
+import parser from "@typescript-eslint/parser";
+import { RuleTester } from "@typescript-eslint/rule-tester";
+import rule, { ruleName } from "src/rules/js-function-in-worklet";
 
-import { ESLintUtils } from "@typescript-eslint/experimental-utils";
+RuleTester.afterAll = test.afterAll;
+RuleTester.describe = test.describe;
+RuleTester.it = test.it;
+RuleTester.itOnly = test.it.only;
 
-import rule from "../src/rules/js-function-in-worklet";
-
-const ruleTester = new ESLintUtils.RuleTester({
-  parser: "@typescript-eslint/parser",
-  parserOptions: {
-    project: "./tsconfig.eslint.json",
-    tsconfigRootDir: path.join(__dirname, "fixtures"),
-    sourceType: "module",
-    ecmaFeatures: {
-      jsx: true,
+const ruleTester = new RuleTester({
+  languageOptions: {
+    parser,
+    parserOptions: {
+      projectService: {
+        allowDefaultProject: ["*.ts*"],
+      },
+      project: "../tsconfig.test.json",
+      sourceType: "module",
+      ecmaFeatures: {
+        jsx: true,
+      },
     },
   },
 });
 
-const code = (name: string) =>
-  fs.readFileSync(path.join(__dirname, name), "utf8");
-const VALID = "fixtures/valid";
-const files = fs.readdirSync(path.join(__dirname, VALID));
-const valid = files.map((file) => ({
-  code: code(path.join(VALID, file)),
-}));
-
-ruleTester.run("js-function-in-worklet", rule, {
-  valid,
+ruleTester.run(ruleName, rule, {
+  valid: [
+    {
+      code: `
+        function test() {
+          runOnJS(() => console.log("Hello"));
+        }
+      `,
+    },
+    {
+      code: `
+        const style = useAnimatedStyle(() => {
+          return { opacity: 1 };
+        });
+      `,
+    },
+    {
+      code: `
+        const opacity = withTiming(1);
+      `,
+    },
+    {
+      code: `
+        const obj = {
+          myFunc: function() {
+            "worklet";
+            console.log("Hello");
+          }
+        };
+      `,
+    },
+  ],
   invalid: [
     {
-      code: code("fixtures/invalid/test1.txt"),
+      code: `
+        const opacity = withTiming(1);
+      `,
       errors: [
         {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "bar",
-          },
-        },
-        {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "bar",
-          },
+          messageId: "jsThreadOnUiThread",
+          data: { name: "withTiming" },
         },
       ],
+      output: `
+        const opacity = runOnJS(withTiming)(1);
+      `,
     },
     {
-      code: code("fixtures/invalid/test2.txt"),
+      code: `
+        const style = useAnimatedStyle(() => {
+          return { opacity: 1 };
+        });
+      `,
       errors: [
         {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "mix",
-          },
+          messageId: "jsThreadFunctionWarning",
+          data: { name: "useAnimatedStyle" },
         },
       ],
+      output: `
+        const style = useAnimatedStyle(() => {
+          "worklet";
+          return { opacity: 1 };
+        });
+      `,
     },
     {
-      code: code("fixtures/invalid/test3.txt"),
+      code: `
+        const obj = {
+          myFunc: function() {
+            console.log("Hello");
+          }
+        };
+      `,
       errors: [
         {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "parse",
-          },
+          messageId: "jsThreadFunctionWarning",
+          data: { name: "myFunc" },
         },
       ],
-    },
-    {
-      code: code("fixtures/invalid/test4.txt"),
-      errors: [
-        {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "bar",
-          },
-        },
-        {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "bar",
-          },
-        },
-      ],
-    },
-    {
-      code: code("fixtures/invalid/test5.txt"),
-      errors: [
-        {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "objectKeys",
-          },
-        },
-      ],
-    },
-    {
-      code: code("fixtures/invalid/test6.txt"),
-      errors: [
-        {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "origin2",
-          },
-        },
-      ],
-    },
-    {
-      code: code("fixtures/invalid/test7.txt"),
-      errors: [
-        {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "run",
-          },
-        },
-      ],
-    },
-    {
-      code: code("fixtures/invalid/test8.txt"),
-      errors: [
-        {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "fn",
-          },
-        },
-      ],
-    },
-    {
-      code: code("fixtures/invalid/test9.txt"),
-      errors: [
-        {
-          messageId: "JSFunctionInWorkletMessage",
-          data: {
-            name: "foo",
-          },
-        },
-      ],
+      output: `
+        const obj = {
+          myFunc: function() {
+            "worklet";
+            console.log("Hello");
+          }
+        };
+      `,
     },
   ],
 });

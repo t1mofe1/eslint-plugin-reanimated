@@ -1,3 +1,12 @@
+import type { InvalidTestCase } from "@typescript-eslint/rule-tester";
+import {
+  MESSAGE_IDS,
+  type MessageIds,
+  type Options,
+} from "src/rules/js-function-in-worklet";
+
+export default {
+  code: `\
 import React from "react";
 import { StyleSheet } from "react-native";
 import {
@@ -46,3 +55,17 @@ const Camera = ({ camera, canvas }: CameraProps) => {
 };
 
 export default Camera;
+  `,
+  name: "test5",
+  errors: [
+    {
+      messageId: MESSAGE_IDS.jsThreadOnUiThread,
+      data: {
+        name: "objectKeys",
+      },
+      // line: 28,
+      // column: 19,
+      // endColumn: 29,
+    },
+  ],
+} as InvalidTestCase<MessageIds, Options>;

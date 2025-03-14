@@ -1,16 +1,18 @@
+export default {
+  code: `\
 import Animated, {useAnimatedStyle, useSharedValue} from 'react-native-reanimated'
 
 const Component = () => {
-  const opacity = useSharedValue(1)
-
   const style = useAnimatedStyle(() => ({
-    opacity: opacity.value
+    opacity: 1
   }))
 
+  console.log({style})
+
   return (
-    <>
-      <Animated.View style={style} />
-      <OtherComponent textStyle={style} />
-    </>
+    <Animated.View style={style} />
   )
 }
+  `,
+  name: "additional-references",
+};

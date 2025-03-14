@@ -1,11 +1,11 @@
+export default {
+  code: `\
 import Animated, {useAnimatedStyle, useSharedValue} from 'react-native-reanimated'
 
 const Component = () => {
-  const opacity = useSharedValue(1)
-
-  const style = useAnimatedStyle(() => ({
-    opacity: opacity.value
-  }))
+  const style = {
+    opacity: 1
+  }
 
   return (
     <>
@@ -14,3 +14,6 @@ const Component = () => {
     </>
   )
 }
+  `,
+  name: "non-animated-style",
+};

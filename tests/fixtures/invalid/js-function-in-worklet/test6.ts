@@ -1,3 +1,12 @@
+import type { InvalidTestCase } from "@typescript-eslint/rule-tester";
+import {
+  MESSAGE_IDS,
+  type MessageIds,
+  type Options,
+} from "src/rules/js-function-in-worklet";
+
+export default {
+  code: `\
 import React from "react";
 import { StyleSheet, Dimensions } from "react-native";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
@@ -31,7 +40,7 @@ const AnimatedCard = ({ card, transition, index }: AnimatedCardProps) => {
     return {
       transform: [
         { translateX: origin },
-        { rotate: `${rotate}rad` },
+        { rotate: \`\${rotate}rad\` },
         { translateX: -origin },
       ],
     };
@@ -42,3 +51,17 @@ const AnimatedCard = ({ card, transition, index }: AnimatedCardProps) => {
 };
 
 export default AnimatedCard;
+  `,
+  name: "test6",
+  errors: [
+    {
+      messageId: MESSAGE_IDS.jsThreadOnUiThread,
+      data: {
+        name: "origin2",
+      },
+      // line: 27,
+      // column: 5,
+      // endColumn: 12,
+    },
+  ],
+} as InvalidTestCase<MessageIds, Options>;

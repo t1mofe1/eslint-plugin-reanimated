@@ -1,3 +1,5 @@
+export default {
+  code: `\
 import {StyleSheet} from 'react-native'
 import Animated, {useAnimatedStyle, useSharedValue} from 'react-native-reanimated'
 
@@ -21,3 +23,6 @@ const styles = StyleSheet.create({
     height: 100,
   },
 })
+  `,
+  name: "member-expression",
+};
