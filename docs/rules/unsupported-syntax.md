@@ -1,4 +1,6 @@
-# Unsupported Syntax (`unsupported-syntax`)
+# Some syntaxes are not a supported within a worklet (`@t1m0fe1/reanimated/unsupported-syntax`)
+
+<!-- end auto-generated rule header -->
 
 Currently, there are some syntaxes which aren't supported within worklets: `for in/of`, array and object destructuring, and the spread operator.
 
