@@ -1,174 +1,237 @@
-import { ESLintUtils } from "@typescript-eslint/experimental-utils";
-import type { Scope } from "@typescript-eslint/scope-manager";
-import type { Node, CallExpression } from "typescript";
 import {
-  isFunctionDeclaration,
-  isBlock,
-  isExpressionStatement,
-  isFunctionTypeNode,
-  getJSDocTags,
-  isArrowFunction,
-  isMethodSignature,
-  isModuleBlock,
-  isSourceFile,
-} from "typescript";
+  TSESTree,
+  ESLintUtils,
+  AST_NODE_TYPES,
+} from "@typescript-eslint/utils";
 
-import { createState, detectWorklet, WORKLET } from "./common";
-export type Options = [];
-export type MessageIds = "JSFunctionInWorkletMessage";
+export const ruleName = "js-thread-on-ui-thread";
 
-const createRule = ESLintUtils.RuleCreator((name) => {
-  return `https://github.com/wcandillon/eslint-plugin-reanimated/blob/master/docs/${name}.md`;
-});
+export const MESSAGE_IDS = {
+  jsThreadOnUiThread: "jsThreadOnUiThread",
+  jsThreadFunctionWarning: "jsThreadFunctionWarning",
+} as const;
 
-const JSFunctionInWorkletMessage =
-  "{{name}} is not a worklet. Use runOnJS instead.";
-
-const isVarInScope = (name: string, scope: Scope): boolean => {
-  const { variables } = scope;
-  if (variables.find((v) => v.name === name) !== undefined) {
-    return true;
-  } else if (scope.type === "function") {
-    return false;
-  } else if (scope.upper === null) {
-    return false;
-  }
-  return isVarInScope(name, scope.upper);
+export type Options = [{ extendWorklets?: Record<string, string[]> }];
+export type MessageIds = keyof typeof MESSAGE_IDS;
+type PluginDocs = {
+  description: string;
+  recommended: boolean;
 };
 
-const URI_PREFIX = "/node_modules/";
-const getModuleURI = (n: Node | undefined): string => {
-  if (n === undefined) {
-    return "";
-  } else if (isSourceFile(n)) {
-    const start = n.fileName.indexOf(URI_PREFIX) + URI_PREFIX.length;
-    return n.fileName.substring(start);
-  }
-  return getModuleURI(n.parent);
-};
+const DEFAULT_WORKLET_FUNCTIONS = new Set([
+  "withTiming",
+  "withSpring",
+  "withDecay",
+  "withRepeat",
+  "useAnimatedStyle",
+  "useAnimatedProps",
+  "createAnimatedPropAdapter",
+  "useDerivedValue",
+  "useAnimatedScrollHandler",
+  "useAnimatedGestureHandler",
+  "runOnUI",
+  "useAnimatedReaction",
+  "useFrameCallback",
+  "useWorkletCallback",
+]);
 
-// eslint-disable-next-line import/no-default-export
-export default createRule<Options, MessageIds>({
-  name: "js-function-in-worklet",
+const createRule = ESLintUtils.RuleCreator<PluginDocs>(
+  (name) => `https://typescript-eslint.io/rules/${name}`
+);
+
+const rule = createRule<Options, MessageIds>({
+  name: ruleName,
   meta: {
-    type: "problem",
+    type: "suggestion",
+    fixable: "code",
     docs: {
       description:
-        "non-worklet functions should be invoked via runOnJS. Use runOnJS() or workletlize instead.",
-      recommended: "error",
+        "Detects JavaScript thread functions being called directly on the UI thread in react-native-reanimated or extended libraries.",
+      recommended: true,
     },
-    fixable: "code",
-    schema: [],
     messages: {
-      JSFunctionInWorkletMessage,
+      [MESSAGE_IDS.jsThreadOnUiThread]:
+        "JavaScript thread function '{{name}}' is being called directly on the UI thread. Use runOnJS('{{name}}') instead.",
+      [MESSAGE_IDS.jsThreadFunctionWarning]:
+        "Function '{{name}}' is missing the 'worklet' directive. Add 'worklet' to ensure it runs on the UI thread.",
     },
+    schema: [
+      {
+        type: "object",
+        properties: {
+          extendWorklets: {
+            type: "object",
+            additionalProperties: {
+              type: "array",
+              items: { type: "string" },
+            },
+          },
+        },
+        additionalProperties: false,
+      },
+    ],
+    hasSuggestions: true,
   },
-  defaultOptions: [],
-  create: (context) => {
-    const { parserServices } = context;
-    if (!parserServices?.hasFullTypeInformation) {
-      return {};
+  defaultOptions: [{}],
+  create(context, [{ extendWorklets }]) {
+    const extendedWorklets = extendWorklets
+      ? new Set([...DEFAULT_WORKLET_FUNCTIONS])
+      : new Set();
+    const trackedModules = new Set(["react-native-reanimated"]);
+
+    if (extendWorklets) {
+      Object.entries(extendWorklets).forEach(([moduleName, functions]) => {
+        trackedModules.add(moduleName);
+        functions.forEach((fn) => extendedWorklets.add(`${moduleName}.${fn}`));
+      });
     }
-    const checker = parserServices.program.getTypeChecker();
-    const calleeIsWorklet = (tsNode: CallExpression) => {
-      const signature = checker.getResolvedSignature(tsNode);
-      const decl = signature?.declaration;
-      const uri = getModuleURI(decl);
-      if (
-        decl !== undefined &&
-        (isFunctionTypeNode(decl) || isMethodSignature(decl))
-      ) {
+
+    const importMap = new Map<
+      string,
+      { importedName: string; module: string }
+    >();
+    let hasRunOnJSImport = false;
+
+    return {
+      ImportDeclaration(node: TSESTree.ImportDeclaration) {
+        if (trackedModules.has(node.source.value)) {
+          node.specifiers.forEach((specifier) => {
+            if (
+              specifier.type === AST_NODE_TYPES.ImportSpecifier &&
+              specifier.imported.type === AST_NODE_TYPES.Identifier &&
+              specifier.imported.name === "runOnJS"
+            ) {
+              hasRunOnJSImport = true;
+            }
+            importMap.set(specifier.local.name, {
+              importedName:
+                specifier.type === AST_NODE_TYPES.ImportSpecifier &&
+                specifier.imported.type === AST_NODE_TYPES.Identifier
+                  ? specifier.imported.name
+                  : "default",
+              module: node.source.value,
+            });
+          });
+        }
+      },
+
+      CallExpression(node: TSESTree.CallExpression) {
         if (
-          uri.startsWith("react-native-reanimated/") ||
-          uri.startsWith("typescript/") ||
-          uri === "@types/node/console.d.ts"
+          node.callee.type === AST_NODE_TYPES.Identifier ||
+          (node.callee.type === AST_NODE_TYPES.MemberExpression &&
+            node.callee.property.type === AST_NODE_TYPES.Identifier)
         ) {
-          return true;
-        }
-        const { parent } = decl;
-        const tags = getJSDocTags(parent);
-        return (
-          tags.filter((tag) => tag.tagName.getText() === WORKLET).length > 0
-        );
-      } else if (
-        decl !== undefined &&
-        (isFunctionDeclaration(decl) || isArrowFunction(decl))
-      ) {
-        if (uri.startsWith("typescript/")) {
-          return true;
-        }
-        if (decl.body && isBlock(decl.body)) {
-          const [statement] = decl.body.statements;
-          if (statement && isExpressionStatement(statement)) {
-            return (
-              statement.expression
-                .getText()
-                .substring(1, WORKLET.length + 1) === WORKLET
+          const functionName =
+            node.callee.type === AST_NODE_TYPES.Identifier
+              ? node.callee.name
+              : node.callee.property.type === AST_NODE_TYPES.Identifier
+              ? node.callee.property.name
+              : null;
+
+          const importInfo = functionName ? importMap.get(functionName) : null;
+          const originalName = importInfo
+            ? importInfo.importedName
+            : functionName;
+          const moduleName = importInfo ? importInfo.module : null;
+          if (!moduleName) {
+            console.warn(
+              `Warning: Module name missing for function '${originalName}'.`
             );
           }
-        } else {
-          const tags = getJSDocTags(decl);
-          return (
-            tags.filter((tag) => tag.tagName.getText() === WORKLET).length > 0
-          );
-        }
-      }
-      return false;
-    };
-    const state = createState();
-    return {
-      ...detectWorklet(state),
-      CallExpression: (node) => {
-        if (state.callerIsWorklet) {
-          const tsNode = parserServices.esTreeNodeToTSNodeMap.get(node);
-          const { expression } = tsNode;
-          const name = expression.getText();
-          const signature = checker.getResolvedSignature(tsNode);
-          const declaration = signature?.declaration;
-          const inScope = isVarInScope(name, context.getScope());
-          const uri = getModuleURI(declaration);
-          if (inScope) {
-            return;
-          }
+          const extendedKey =
+            moduleName && trackedModules.has(moduleName)
+              ? `${moduleName}.${originalName}`
+              : originalName;
+
           if (
-            declaration &&
-            isFunctionTypeNode(declaration) &&
-            isFunctionDeclaration(declaration.parent) &&
-            isModuleBlock(declaration.parent.parent) &&
-            declaration.parent.parent.parent.name.getText() === "Animated"
+            originalName !== "runOnJS" &&
+            !extendedWorklets.has(originalName) &&
+            !extendedWorklets.has(extendedKey)
           ) {
-            return;
-          } else if (
-            declaration &&
-            isFunctionDeclaration(declaration) &&
-            isModuleBlock(declaration.parent) &&
-            declaration.parent.parent.name.getText() === "Animated"
-          ) {
-            return;
-          } else if (declaration === undefined) {
-            return;
-          } else if (
-            uri.startsWith("react-native-reanimated/") ||
-            uri.startsWith("typescript/") ||
-            uri === "@types/node/console.d.ts" ||
-            uri.startsWith(
-              "@shopify/react-native-skia/lib/typescript/src/skia/types/"
-            ) ||
-            uri.indexOf("react-native-skia/package/src/skia/types") !== -1
-          ) {
-            return;
-          }
-          if (!calleeIsWorklet(tsNode)) {
             context.report({
-              messageId: "JSFunctionInWorkletMessage",
               node,
-              data: {
-                name,
+              messageId: MESSAGE_IDS.jsThreadOnUiThread,
+              data: { name: originalName },
+              fix: (fixer) => {
+                const fixes = [];
+
+                if (!hasRunOnJSImport) {
+                  hasRunOnJSImport = true;
+
+                  fixes.push(
+                    fixer.insertTextBefore(
+                      context.sourceCode.ast,
+                      `import { runOnJS } from "react-native-reanimated";\n`
+                    )
+                  );
+                }
+
+                fixes.push(
+                  fixer.replaceText(node.callee, `runOnJS(${originalName})`)
+                );
+
+                return fixes;
               },
             });
           }
         }
       },
+
+      ObjectExpression(node: TSESTree.ObjectExpression) {
+        node.properties.forEach((prop) => {
+          if (
+            prop.type === AST_NODE_TYPES.Property &&
+            (prop.value.type === AST_NODE_TYPES.FunctionExpression ||
+              prop.value.type === AST_NODE_TYPES.ArrowFunctionExpression)
+          ) {
+            if (
+              !extendedWorklets.has(
+                prop.key.type === AST_NODE_TYPES.Identifier ? prop.key.name : ""
+              )
+            ) {
+              context.report({
+                node: prop.value,
+                messageId: MESSAGE_IDS.jsThreadFunctionWarning,
+                data: {
+                  name:
+                    prop.key.type === AST_NODE_TYPES.Identifier
+                      ? prop.key.name
+                      : "unknown",
+                },
+                suggest: [
+                  {
+                    messageId: MESSAGE_IDS.jsThreadFunctionWarning,
+                    data: {
+                      name:
+                        prop.key.type === AST_NODE_TYPES.Identifier
+                          ? prop.key.name
+                          : "unknown",
+                    },
+                    fix: (fixer) => {
+                      if (
+                        (prop.value.type ===
+                          AST_NODE_TYPES.FunctionExpression ||
+                          prop.value.type ===
+                            AST_NODE_TYPES.ArrowFunctionExpression) &&
+                        prop.value.body.type === AST_NODE_TYPES.BlockStatement
+                      ) {
+                        return fixer.insertTextBefore(
+                          prop.value.body,
+                          `"worklet";\n`
+                        );
+                      }
+
+                      return null;
+                    },
+                  },
+                ],
+              });
+            }
+          }
+        });
+      },
     };
   },
 });
+
+export default rule;

@@ -1,63 +1,59 @@
-import { ESLintUtils } from "@typescript-eslint/experimental-utils";
+import { createRule, createState } from "../helpers/common";
+import detectWorklet from "../helpers/detectWorklet";
 
-import { createState, detectWorklet } from "./common";
-export type Options = [];
-export type MessageIds = "UnsupportedSyntaxMessage";
+export const ruleName = "unsupported-syntax" as const;
+export const messageId = "UnsupportedSyntaxMessage" as const;
 
-const UnsupportedSyntaxMessage =
-  "{{name}} is not a supported syntax within a worklet.";
-
-const createRule = ESLintUtils.RuleCreator((name) => {
-  return `https://github.com/wcandillon/eslint-plugin-reanimated/blob/master/docs/${name}.md`;
-});
-
-// eslint-disable-next-line import/no-default-export
-export default createRule<Options, MessageIds>({
-  name: "unsupported-syntax",
+const rule = createRule({
+  name: ruleName,
   meta: {
     type: "problem",
     docs: {
       description: "Some syntaxes are not a supported within a worklet.",
-      recommended: "error",
+      recommended: true,
     },
-    fixable: "code",
-    schema: [],
     messages: {
-      UnsupportedSyntaxMessage,
+      [messageId]: "{{name}} is not a supported syntax within a worklet.",
     },
+    schema: [],
   },
   defaultOptions: [],
   create: (context) => {
     const state = createState();
+
     return {
       ...detectWorklet(state),
+
       ForOfStatement: (node) => {
-        if (state.callerIsWorklet) {
-          context.report({
-            messageId: "UnsupportedSyntaxMessage",
-            node,
-            data: {
-              name: "for in/of",
-            },
-          });
+        if (!state.callerIsWorklet) {
+          return;
         }
+
+        context.report({
+          messageId,
+          node,
+          data: {
+            name: "for of",
+          },
+        });
       },
       ForInStatement: (node) => {
-        if (state.callerIsWorklet) {
-          context.report({
-            messageId: "UnsupportedSyntaxMessage",
-            node,
-            data: {
-              name: "for in/of",
-            },
-          });
+        if (!state.callerIsWorklet) {
+          return;
         }
+
+        context.report({
+          messageId,
+          node,
+          data: {
+            name: "for in",
+          },
+        });
       },
-      /*
       ObjectPattern: (node) => {
-        if (state.callerIsWorklet) {
+        if (!state.callerIsWorklet) {
           context.report({
-            messageId: "UnsupportedSyntaxMessage",
+            messageId,
             node,
             data: {
               name: "Object destructuring",
@@ -65,18 +61,21 @@ export default createRule<Options, MessageIds>({
           });
         }
       },
-      */
       SpreadElement: (node) => {
-        if (state.callerIsWorklet) {
-          context.report({
-            messageId: "UnsupportedSyntaxMessage",
-            node,
-            data: {
-              name: "The spread operator",
-            },
-          });
+        if (!state.callerIsWorklet) {
+          return;
         }
+
+        context.report({
+          messageId,
+          node,
+          data: {
+            name: "Spread operator",
+          },
+        });
       },
     };
   },
 });
+
+export default rule;
