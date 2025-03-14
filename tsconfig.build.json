@@ -5,6 +5,7 @@
     "noEmit": false,
     "moduleResolution": "node",
     "module": "CommonJS",
+    "removeComments": true,
   },
   "include": ["src"],
 }

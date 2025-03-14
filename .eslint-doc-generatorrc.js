@@ -6,5 +6,4 @@ const config = {
 	"ruleDocSectionOptions": false,
 }
 
-// eslint-disable-next-line no-undef
 module.exports = config;
